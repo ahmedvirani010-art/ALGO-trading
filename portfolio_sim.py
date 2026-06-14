@@ -63,8 +63,8 @@ HIST_SHARPE: dict[str, float] = {
 }
 
 N_SLOTS   = 2   # number of concurrent positions
-TOP_ENTRY = 2   # must be in top-N to enter
-TOP_HOLD  = 4   # exit if rank drops below this
+TOP_ENTRY = 4   # must be in top-N to enter (wider entry = more trades)
+TOP_HOLD  = 5   # exit if rank drops below this
 
 BULL_COLS = [c for c in SIGNAL_COLUMNS if "bull" in c]
 BEAR_COLS = [c for c in SIGNAL_COLUMNS if "bear" in c]
@@ -201,13 +201,16 @@ def simulate(
     initial_capital: float,
     stop_pct: float,
     tp_pct: float,
+    n_slots: int = N_SLOTS,
+    top_entry: int = TOP_ENTRY,
+    top_hold: int = TOP_HOLD,
 ) -> tuple[list[ClosedTrade], pd.Series]:
 
     date_sets    = [set(stock_data[t]["df"].index) for t in stock_data]
     common_dates = sorted(set.intersection(*date_sets))
 
-    slot_cash: list[float]             = [initial_capital / N_SLOTS] * N_SLOTS
-    slot_pos:  list[Optional[Position]] = [None] * N_SLOTS
+    slot_cash: list[float]             = [initial_capital / n_slots] * n_slots
+    slot_pos:  list[Optional[Position]] = [None] * n_slots
 
     equity_curve: list[float] = []
     closed_trades: list[ClosedTrade] = []
@@ -221,8 +224,8 @@ def simulate(
             if date in d["score"].index and not np.isnan(d["score"].loc[date])
         }
         ranking = sorted(today_scores, key=today_scores.get, reverse=True)
-        top_entry_set = set(ranking[:TOP_ENTRY])
-        top_hold_set  = set(ranking[:TOP_HOLD])
+        top_entry_set = set(ranking[:top_entry])
+        top_hold_set  = set(ranking[:top_hold])
 
         # ── manage open positions ────────────────────────────────────────
         for i, pos in enumerate(slot_pos):
@@ -278,7 +281,7 @@ def simulate(
         for i, pos in enumerate(slot_pos):
             if pos is not None:
                 continue
-            for ticker in ranking[:TOP_ENTRY]:      # only enter from top-2
+            for ticker in ranking[:top_entry]:      # only enter from top-N
                 if ticker in held:
                     continue
                 if date not in stock_data[ticker]["sig"].index:
@@ -368,7 +371,7 @@ def print_report(trades: list[ClosedTrade], equity: pd.Series, initial_capital: 
         reasons[t.reason] = reasons.get(t.reason, 0) + 1
 
     print(f"\n{'═'*60}")
-    print("  PORTFOLIO REPORT  (Orchestrator Top-2, Hold to Top-4)")
+    print("  PORTFOLIO REPORT  (Orchestrator Top-4 entry, Hold to Top-5)")
     print(f"  {equity.index[0].date()}  →  {equity.index[-1].date()}")
     print(f"{'═'*60}")
     print(f"  Initial capital    : PKR {initial_capital:>12,.0f}")
@@ -434,11 +437,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Orchestrator 2-slot portfolio simulation")
     parser.add_argument("--capital", type=float, default=100_000)
     parser.add_argument("--stop",    type=float, default=2.0)
-    parser.add_argument("--tp",      type=float, default=4.0)
+    parser.add_argument("--tp",      type=float, default=8.0)
     args = parser.parse_args()
 
     print(f"\n{'═'*60}")
-    print(f"  ORCHESTRATOR PORTFOLIO  |  2 slots  |  Top-2 entry / Top-4 hold")
+    print(f"  ORCHESTRATOR PORTFOLIO  |  2 slots  |  Top-4 entry / Top-5 hold")
     print(f"  Capital: PKR {args.capital:,.0f}  |  Stop: {args.stop}%  |  TP: {args.tp}%")
     print(f"  Data: dividend-adjusted prices")
     print(f"{'═'*60}\n")
