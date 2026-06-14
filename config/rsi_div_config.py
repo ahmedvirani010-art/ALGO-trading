@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Literal
 
 _VALID_SMOOTH = {"SMA", "EMA", "RMA", "WMA", "HMA", "None"}
 _VALID_SOURCES = {"close", "open", "high", "low", "hl2", "hlc3", "ohlc4"}
@@ -54,3 +55,17 @@ class Config:
             raise ValueError("max_dist must be > min_dist")
         if self.min_rsi_diff < 0:
             raise ValueError("min_rsi_diff must be >= 0")
+
+
+def relaxed_config() -> "Config":
+    """Looser thresholds that produce significantly more signals than the default."""
+    return Config(
+        rsi_length=14,
+        smooth_type="EMA",
+        smooth_length=20,   # was 60 — shorter smooth → RSI reacts faster
+        p_len=1,            # was 2 — smaller micro pivot lookback
+        p_len_macro=5,      # was 10 — smaller macro pivot lookback
+        min_dist=3,         # was 5 — allow closer pivots
+        max_dist=150,       # was 100 — allow more distant pivots
+        min_rsi_diff=2.0,   # was 4.0 — accept weaker divergences
+    )

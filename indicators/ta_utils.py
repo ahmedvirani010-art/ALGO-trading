@@ -138,3 +138,58 @@ def valuewhen(cond: pd.Series, val: pd.Series, occurrence: int = 1) -> pd.Series
     for k in range(occurrence, len(true_idx)):
         result.loc[true_idx[k]] = val.loc[true_idx[k - occurrence]]
     return result.ffill()
+
+
+# ---------------------------------------------------------------------------
+# Volatility & trend-strength indicators
+# ---------------------------------------------------------------------------
+
+def compute_atr(df: pd.DataFrame, length: int = 14) -> pd.Series:
+    """Average True Range using Wilder's smoothing (RMA)."""
+    high, low, close = df["high"], df["low"], df["close"]
+    prev_close = close.shift(1)
+    tr = pd.concat([
+        high - low,
+        (high - prev_close).abs(),
+        (low  - prev_close).abs(),
+    ], axis=1).max(axis=1)
+    return rma(tr, length)
+
+
+def compute_adx(df: pd.DataFrame, length: int = 14) -> pd.DataFrame:
+    """
+    Average Directional Index.
+    Returns DataFrame with columns: adx, plus_di, minus_di  (all 0-100 scale).
+    ADX > 25 indicates a trending market; > 40 a strong trend.
+    """
+    high, low, close = df["high"], df["low"], df["close"]
+    prev_high = high.shift(1)
+    prev_low  = low.shift(1)
+
+    move_up   = high - prev_high
+    move_down = prev_low - low
+
+    plus_dm  = np.where((move_up > move_down) & (move_up > 0),  move_up,  0.0)
+    minus_dm = np.where((move_down > move_up) & (move_down > 0), move_down, 0.0)
+
+    plus_dm_s  = pd.Series(plus_dm,  index=df.index, dtype=float)
+    minus_dm_s = pd.Series(minus_dm, index=df.index, dtype=float)
+
+    atr14 = compute_atr(df, length)
+
+    plus_di  = 100.0 * rma(plus_dm_s,  length) / atr14
+    minus_di = 100.0 * rma(minus_dm_s, length) / atr14
+
+    di_sum  = plus_di + minus_di
+    dx = np.where(di_sum == 0, 0.0, 100.0 * (plus_di - minus_di).abs() / di_sum)
+    dx_s = pd.Series(dx, index=df.index, dtype=float)
+    adx = rma(dx_s, length)
+
+    return pd.DataFrame({"adx": adx, "plus_di": plus_di, "minus_di": minus_di},
+                        index=df.index)
+
+
+def compute_sma_distance(close: pd.Series, length: int = 200) -> pd.Series:
+    """% distance of price from its SMA. Positive = above (uptrend)."""
+    sma200 = sma(close, length)
+    return (close - sma200) / sma200 * 100.0
