@@ -39,12 +39,12 @@ from indicators.ta_utils import (
 # ---------------------------------------------------------------------------
 
 STOCKS: dict[str, str] = {
-    "NATF":    "data/NATF_price_history_full.csv",
-    "BAFL":    "data/BAFL_price_history.csv",
-    "HUBC":    "data/HUBC_price_history.csv",
-    "ITTEHAD": "data/ITTEHAD_price_history.csv",
-    "LUCK":    "data/LUCK_price_history.csv",
-    "MARI":    "data/MARI_price_history.csv",
+    "NATF":    "data/NATF_price_history_full_adj.csv",
+    "BAFL":    "data/BAFL_price_history_adj.csv",
+    "HUBC":    "data/HUBC_price_history_adj.csv",
+    "ITTEHAD": "data/ITTEHAD_price_history_adj.csv",
+    "LUCK":    "data/LUCK_price_history_adj.csv",
+    "MARI":    "data/MARI_price_history_adj.csv",
 }
 
 BEST_CONFIGS: dict[str, dict] = {
@@ -74,11 +74,14 @@ N_SLOTS = 3
 def load_csv(path: str) -> pd.DataFrame:
     df = pd.read_csv(path)
     df.columns = [c.strip().strip('"').lower() for c in df.columns]
-    df["date"] = pd.to_datetime(df["date"], format="%m/%d/%Y")
+    df["date"] = pd.to_datetime(df["date"])
     df = df.sort_values("date").reset_index(drop=True).set_index("date")
-    for col in ["price", "open", "high", "low"]:
-        df[col] = pd.to_numeric(df[col].astype(str).str.replace(",", ""), errors="coerce")
-    return df.rename(columns={"price": "close"})[["open", "high", "low", "close"]]
+    for col in ["price", "open", "high", "low", "close"]:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col].astype(str).str.replace(",", ""), errors="coerce")
+    if "price" in df.columns and "close" not in df.columns:
+        df = df.rename(columns={"price": "close"})
+    return df[["open", "high", "low", "close"]]
 
 
 # ---------------------------------------------------------------------------
